@@ -1,0 +1,24 @@
+[tool.poetry]
+name = "tg_engine"
+version = "0.1.0"
+description = ""
+authors = ["vatslav"]
+
+[tool.poetry.dependencies]
+python = "^3.9"
+loguru = "^0.6.0"
+python-telegram-bot = {git = "https://github.com/python-telegram-bot/python-telegram-bot.git"}
+SQLAlchemy = "^1.4.39"
+psycopg2-binary = "^2.9.3"
+alembic = "^1.8.1"
+pydantic = "^1.9.1"
+gunicorn = "^20.1.0"
+uvicorn = "^0.18.2"
+
+[tool.poetry.dev-dependencies]
+flake8 = "^4.0.1"
+mypy = "^0.971"
+
+[build-system]
+requires = ["poetry-core>=1.0.0"]
+build-backend = "poetry.core.masonry.api"
