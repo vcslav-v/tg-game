@@ -11,9 +11,9 @@ class User(Base):
 
     __tablename__ = 'users'
 
-    id = Column(BigInteger, primary_key=True)
+    id = Column(Integer, primary_key=True)
 
-    telegram_id = Column(Integer, unique=True)
+    telegram_id = Column(BigInteger, unique=True)
     cur_message_link = Column(Text)
     num_referals = Column(Integer, default=0)
     chapter_message_links = Column(Text)
