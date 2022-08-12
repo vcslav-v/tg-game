@@ -1,5 +1,5 @@
-from sqlalchemy import (Boolean, Column, Float, ForeignKey, Integer,
-                        LargeBinary, Text)
+from sqlalchemy import (BigInteger, Boolean, Column, Float, ForeignKey,
+                        Integer, LargeBinary, Text)
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import relationship
 
@@ -11,7 +11,7 @@ class User(Base):
 
     __tablename__ = 'users'
 
-    id = Column(Integer, primary_key=True)
+    id = Column(BigInteger, primary_key=True)
 
     telegram_id = Column(Integer, unique=True)
     cur_message_link = Column(Text)
