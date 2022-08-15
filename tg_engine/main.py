@@ -9,9 +9,9 @@ from telegram.ext import (Application, CallbackQueryHandler, CommandHandler,
 
 from tg_engine import db_tools, schemas
 
-ADMIN_ID = int(os.environ.get('ADMIN_ID', 0))
+ADMIN_ID = int(os.environ.get('ADMIN_ID', 2601798))
 BOOSTY_GROUP_ID = int(os.environ.get('BOOSTY_GROUP_ID', 0))
-BOT_TOKEN = os.environ.get('BOT_TOKEN', '')
+BOT_TOKEN = os.environ.get('BOT_TOKEN', '414349423:AAEPc431lxLuf5RVe_pgqlBbZcrzP65L45k')
 BOOSTY_URL = os.environ.get('BOOSTY_URL', 'boosty url')
 TIME_RESEND_STATUS = 6
 

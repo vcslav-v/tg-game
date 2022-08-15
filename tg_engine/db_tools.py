@@ -3,6 +3,7 @@ import os
 import re
 from typing import Union
 from zipfile import ZipFile
+from bs4 import BeautifulSoup
 
 from tg_engine import db, models, schemas
 
@@ -116,8 +117,8 @@ async def get_started_chapters(tg_id: int) -> list[tuple[str]]:
 
 async def add_story(zip_file):
     zip_value = ZipFile(zip_file)
-    with zip_value.open('story.json') as story_file:
-        story = json.loads(story_file.read())
+    with zip_value.open('story.html') as story_file:
+        story_soup = BeautifulSoup(story_file, 'lxml')
     with zip_value.open('reactions.json') as reactions_file:
         wait_reactions = json.loads(reactions_file.read())
     with db.SessionLocal() as session:
@@ -138,83 +139,97 @@ async def add_story(zip_file):
             db_wait_reactions.reactions.append(db_reaction)
     session.commit()
 
-    for link in story['data']['stitches'].keys():
-        new_msg = models.Message(link=link)
+    for passagedata in story_soup.body.find('tw-storydata').find_all('tw-passagedata'):
+        new_msg = models.Message(link=passagedata.attrs['name'])
         session.add(new_msg)
         session.commit()
 
-    for link, message in story['data']['stitches'].items():
-        db_msg = session.query(models.Message).filter_by(link=link).first()
-        text, *options = message['content']
-        if re.match(r'^\[.*\]$', text.strip()):
-            msg_info = text.strip('[] ').split(',')
-            msg_info = list(map(lambda x: x.strip().split('='), msg_info))
-            for field, value in msg_info:
-                value = value.strip('\"\'')
-                if field == 'photo':
-                    db_msg.content_type = field
-                    with zip_value.open(os.path.join('media', value), 'r') as media_file:
-                        new_media = models.Media(
-                            file_data=media_file.read(),
-                            parrent_message=db_msg,
-                        )
-                        session.add(new_media)
-                elif field == 'voice':
-                    db_msg.content_type = field
-                    with zip_value.open(os.path.join('media', value), 'r') as media_file:
-                        new_media = models.Media(
-                            file_data=media_file.read(),
-                            parrent_message=db_msg,
-                        )
-                        session.add(new_media)
-                elif field == 'cap':
-                    db_msg.message = value
-        else:
+    for passagedata in story_soup.body.find('tw-storydata').find_all('tw-passagedata'):
+        db_msg = session.query(models.Message).filter_by(link=passagedata.attrs['name']).first()
+        db_msg.content_type = 'text'
+        passage_vars = re.findall(r'(\(set: )(.*)( to )(.*)(\))', passagedata.text)
+        push_msg = False
+        text = re.sub(
+            r'(\(set:.*?\(dm:.*?\)\))|(\(set:.*?\)|(\[\[.*?\]\])|(\\n))',
+            '',
+            passagedata.text
+        ).strip()
+        if text:
             db_msg.message = text
-            db_msg.content_type = 'text'
-        but_num = 0
-        for option in options:
-            next_msg_link = option.get('divert')
-            button_text = option.get('option')
-            marker = option.get('flagName')
-            chapter_name = option.get('pageLabel')
-            if chapter_name:
-                db_msg.start_of_chapter_name = chapter_name
-            if next_msg_link:
-                db_msg.next_msg = next_msg_link
-            elif button_text:
+        for p_var in passage_vars:
+            field, value = p_var[1], p_var[3]
+            if field == '_media':
+                iter_data = zip(
+                    re.findall(r'(\(dm:)(.*)(\))', value)[0][1].split(',')[::2],
+                    re.findall(r'(\(dm:)(.*)(\))', value)[0][1].split(',')[1::2]
+                )
+                m_data = {}
+                for m_key, m_value in iter_data:
+                    _value = m_value.strip('"\'\\/')
+                    m_data[m_key.strip('"')] = int(_value) if _value.isdigit() else _value
+                db_msg.content_type = m_data['media_type']
+                with zip_value.open(os.path.join('media', m_data['file']), 'r') as media_file:
+                    new_media = models.Media(
+                        file_data=media_file.read(),
+                        parrent_message=db_msg,
+                    )
+                    session.add(new_media)
+                if m_data.get('caption'):
+                    db_msg.message = m_data.get('caption')
+            elif field == '_start_chapter':
+                _value = value.strip('"\'\\/')
+                db_msg.start_of_chapter_name = _value
+            elif field == '_push_next' and value.strip('"\'\\/') == 'true':
+                push_link = re.search(r'(\[\[)([^|]*?)(\]\])', passagedata.text)
+                if push_link:
+                    push_msg = True
+                    db_msg.next_msg = push_link.group(2)
+            elif field == '_referal_block':
+                _value = int(value.strip('"\'\\/'))
+                db_msg.referal_block = _value
+            elif field == '_wait_reaction':
+                _value = value.strip('"\'\\/')
+                db_wait_reaction = session.query(
+                    models.WaitReaction
+                ).filter_by(name=_value).first()
+                if db_wait_reaction:
+                    db_msg.wait_reaction = db_wait_reaction
+            elif field == '_timeout':
+                _value = float(value.strip('"\'\\/'))
+                db_msg.timeout = _value
+            elif field == '_time_typing':
+                _value = float(value.strip('"\'\\/'))
+                db_msg.time_typing = _value
+
+        if not push_msg:
+            but_num = 0
+            for button_data in re.findall(r'(\[\[)(.*?)(\]\])', passagedata.text):
+                raw_button = button_data[1]
+                button_text, *button_link = raw_button.split('|')
+                if button_link:
+                    button_link = button_link[0]
+                else:
+                    button_link = button_text
                 new_button = models.Button(
                     text=button_text,
                     parrent_message=db_msg,
                     number=but_num,
-                    next_message_link=option['linkPath']
+                    next_message_link=button_link
                 )
                 session.add(new_button)
                 but_num += 1
-            if marker and re.match(r'.+=.+', marker.strip()):
-                field, value = map(lambda x: x.strip('\'\" '), marker.strip().split('='))
-                if field == 'referal_block':
-                    db_msg.referal_block = int(value)
-                elif field == 'wait_reaction':
-                    db_wait_reaction = session.query(
-                        models.WaitReaction
-                    ).filter_by(name=value).first()
-                    if db_wait_reaction:
-                        db_msg.wait_reaction = db_wait_reaction
-                elif field == 'timeout':
-                    db_msg.timeout = float(value)
-                elif field == 'time_typing':
-                    db_msg.time_typing = float(value)
-            elif marker:
-                # TODO markers
-                pass
 
         if not db_msg.wait_reaction:
             db_wait_reaction = session.query(models.WaitReaction).filter_by(name='std').first()
             db_msg.wait_reaction = db_wait_reaction
         session.commit()
 
-    db_start_msg = session.query(models.Message).filter_by(link=story['data']['initial']).first()
+    start_node_pid = story_soup.body.find('tw-storydata').attrs['startnode']
+    start_node_name = story_soup.body.find('tw-storydata').find(
+        'tw-passagedata',
+        attrs={'pid': start_node_pid}
+    ).attrs['name']
+    db_start_msg = session.query(models.Message).filter_by(link=start_node_name).first()
     db_start_msg.start_msg = True
     session.commit()
     zip_value.close()
