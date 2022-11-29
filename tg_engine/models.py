@@ -185,8 +185,18 @@ class Flag(Base):
     id = Column(Integer, primary_key=True)
     name = Column(Text)
     users = relationship('User', secondary=user_flags, back_populates='flags', passive_deletes=True)
-    messages_set = relationship('Message', secondary=message_set_flags, back_populates='set_flags', passive_deletes=True)
-    messages_rem = relationship('Message', secondary=message_rm_flags, back_populates='rm_flags', passive_deletes=True)
+    messages_set = relationship(
+        'Message',
+        secondary=message_set_flags,
+        back_populates='set_flags',
+        passive_deletes=True,
+    )
+    messages_rem = relationship(
+        'Message',
+        secondary=message_rm_flags,
+        back_populates='rm_flags',
+        passive_deletes=True
+    )
     buttons = relationship(
         'Button',
         secondary=button_condition_flags,
