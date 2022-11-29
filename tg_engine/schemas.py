@@ -1,11 +1,17 @@
 from pydantic import BaseModel
 from typing import Optional
+from typing import Union
 
 
 class Button(BaseModel):
     text: str
     number: int
     next_message_link: str
+
+
+class Var(BaseModel):
+    name: str
+    value: Union[bool, int, str]
 
 
 class Message(BaseModel):

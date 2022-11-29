@@ -3,6 +3,7 @@ import os
 import re
 from typing import Union
 from zipfile import ZipFile
+
 from bs4 import BeautifulSoup
 
 from tg_engine import db, models, schemas
@@ -150,7 +151,7 @@ async def add_story(zip_file):
         passage_vars = re.findall(r'(\(set: )(.*)( to )(.*)(\))', passagedata.text)
         push_msg = False
         text = re.sub(
-            r'(\(set:.*?\(dm:.*?\)\))|(\(set:.*?\)|(\[\[.*?\]\])|(\\n))',
+            r'(\(set:.*?\(dm:.*?\)\))|(\(set:.*?\)|(\[\[.*?\]\]))|\(if:.*?\)\s*?\[\[.*?\]\]',
             '',
             passagedata.text
         ).strip()
@@ -158,64 +159,95 @@ async def add_story(zip_file):
             db_msg.message = text
         for p_var in passage_vars:
             field, value = p_var[1], p_var[3]
-            if field == '_media':
-                iter_data = zip(
-                    re.findall(r'(\(dm:)(.*)(\))', value)[0][1].split(',')[::2],
-                    re.findall(r'(\(dm:)(.*)(\))', value)[0][1].split(',')[1::2]
+            if field.strip('"\'\\/')[0] == '$':
+                msg_var = schemas.Var(
+                    name=field.strip('"\'\\/'),
+                    value=value.strip('"\'\\/')
                 )
-                m_data = {}
-                for m_key, m_value in iter_data:
-                    _value = m_value.strip('"\'\\/')
-                    m_data[m_key.strip('"')] = int(_value) if _value.isdigit() else _value
-                db_msg.content_type = m_data['media_type']
-                with zip_value.open(os.path.join('media', m_data['file']), 'r') as media_file:
-                    new_media = models.Media(
-                        file_data=media_file.read(),
-                        parrent_message=db_msg,
+                if isinstance(msg_var.value, bool):
+                    db_flag = session.query(models.Flag).filter_by(name=msg_var.name).first()
+                    if not db_flag:
+                        db_flag = models.Flag(name=msg_var.name)
+                        session.add(db_flag)
+                    if msg_var.value:
+                        db_msg.set_flags.append(db_flag)
+                    else:
+                        db_msg.rm_flags.append(db_flag)
+            else:
+                if field == '_media':
+                    iter_data = zip(
+                        re.findall(r'(\(dm:)(.*)(\))', value)[0][1].split(',')[::2],
+                        re.findall(r'(\(dm:)(.*)(\))', value)[0][1].split(',')[1::2]
                     )
-                    session.add(new_media)
-                if m_data.get('caption'):
-                    db_msg.message = m_data.get('caption')
-            elif field == '_start_chapter':
-                _value = value.strip('"\'\\/')
-                db_msg.start_of_chapter_name = _value
-            elif field == '_push_next' and value.strip('"\'\\/') == 'true':
-                push_link = re.search(r'(\[\[)([^|]*?)(\]\])', passagedata.text)
-                if push_link:
-                    push_msg = True
-                    db_msg.next_msg = push_link.group(2)
-            elif field == '_referal_block':
-                _value = int(value.strip('"\'\\/'))
-                db_msg.referal_block = _value
-            elif field == '_wait_reaction':
-                _value = value.strip('"\'\\/')
-                db_wait_reaction = session.query(
-                    models.WaitReaction
-                ).filter_by(name=_value).first()
-                if db_wait_reaction:
-                    db_msg.wait_reaction = db_wait_reaction
-            elif field == '_timeout':
-                _value = float(value.strip('"\'\\/'))
-                db_msg.timeout = _value
-            elif field == '_time_typing':
-                _value = float(value.strip('"\'\\/'))
-                db_msg.time_typing = _value
+                    m_data = {}
+                    for m_key, m_value in iter_data:
+                        _value = m_value.strip('"\'\\/')
+                        m_data[m_key.strip('"')] = int(_value) if _value.isdigit() else _value
+                    db_msg.content_type = m_data['media_type']
+                    with zip_value.open(os.path.join('media', m_data['file']), 'r') as media_file:
+                        new_media = models.Media(
+                            file_data=media_file.read(),
+                            parrent_message=db_msg,
+                        )
+                        session.add(new_media)
+                    if m_data.get('caption'):
+                        db_msg.message = m_data.get('caption')
+                elif field == '_start_chapter':
+                    _value = value.strip('"\'\\/')
+                    db_msg.start_of_chapter_name = _value
+                elif field == '_push_next' and value.strip('"\'\\/') == 'true':
+                    push_link = re.search(r'(\[\[)([^|]*?)(\]\])', passagedata.text)
+                    if push_link:
+                        push_msg = True
+                        db_msg.next_msg = push_link.group(2)
+                elif field == '_referal_block':
+                    _value = int(value.strip('"\'\\/'))
+                    db_msg.referal_block = _value
+                elif field == '_wait_reaction':
+                    _value = value.strip('"\'\\/')
+                    db_wait_reaction = session.query(
+                        models.WaitReaction
+                    ).filter_by(name=_value).first()
+                    if db_wait_reaction:
+                        db_msg.wait_reaction = db_wait_reaction
+                elif field == '_timeout':
+                    _value = float(value.strip('"\'\\/'))
+                    db_msg.timeout = _value
+                elif field == '_time_typing':
+                    _value = float(value.strip('"\'\\/'))
+                    db_msg.time_typing = _value
 
         if not push_msg:
             but_num = 0
-            for button_data in re.findall(r'(\[\[)(.*?)(\]\])', passagedata.text):
-                raw_button = button_data[1]
+            for button_data in re.findall(
+                r'(\(if:(.*?) is (.*?)\)\s*?)?(\[\[)(.*?)(\]\])',
+                passagedata.text
+            ):
+                raw_button = button_data[4]
                 button_text, *button_link = raw_button.split('|')
                 if button_link:
                     button_link = button_link[0]
                 else:
                     button_link = button_text
+
                 new_button = models.Button(
                     text=button_text,
                     parrent_message=db_msg,
                     number=but_num,
-                    next_message_link=button_link
+                    next_message_link=button_link,
                 )
+                if button_data[1]:
+                    condition = schemas.Var(
+                        name=button_data[1].strip('"\'\\/'),
+                        value=button_data[2].strip('"\'\\/')
+                    )
+                    if isinstance(condition.value, bool):
+                        db_flag = session.query(models.Flag).filter_by(name=condition.name).first()
+                        if not db_flag:
+                            db_flag = models.Flag(name=condition.name)
+                            session.add(db_flag)
+                        if condition.value:
+                            new_button.condition_flags.append(db_flag)
                 session.add(new_button)
                 but_num += 1
 
@@ -231,5 +263,6 @@ async def add_story(zip_file):
     ).attrs['name']
     db_start_msg = session.query(models.Message).filter_by(link=start_node_name).first()
     db_start_msg.start_msg = True
+
     session.commit()
     zip_value.close()
