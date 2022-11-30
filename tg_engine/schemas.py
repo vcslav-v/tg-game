@@ -26,6 +26,8 @@ class Message(BaseModel):
     buttons: Optional[list[Button]] = []
     wait_reaction: Optional[list[str]]
     referal_block: Optional[int]
+    set_flags: Optional[set]
+    rm_flags: Optional[set]
 
 
 class WaitReactions(BaseModel):
@@ -36,3 +38,9 @@ class WaitReactions(BaseModel):
 
 class UserContext(BaseModel):
     next_message: Optional[Message]
+    flags: set[str] = set()
+
+
+class SaveUserData(BaseModel):
+    chapter_name: str
+    flags: set[str] = set()

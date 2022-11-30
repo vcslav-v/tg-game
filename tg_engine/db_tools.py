@@ -7,21 +7,24 @@ from zipfile import ZipFile
 from bs4 import BeautifulSoup
 
 from tg_engine import db, models, schemas
+from datetime import datetime
+
+ADDITIONAL_TEXT_TAG = 'ad_text_{}'
 
 
 async def is_user_exist(tg_id: int):
     with db.SessionLocal() as session:
         return bool(
-            session.query(models.User).filter_by(telegram_id=tg_id).count()
+            session.query(models.User).filter_by(telegram_id=str(tg_id)).count()
         )
 
 
 async def add_user(tg_id: int, parent_tg_id: Union[int, None] = None):
     with db.SessionLocal() as session:
-        user = models.User(telegram_id=tg_id)
+        user = models.User(telegram_id=str(tg_id))
         session.add(user)
         if parent_tg_id:
-            db_parent = session.query(models.User).filter_by(telegram_id=parent_tg_id).first()
+            db_parent = session.query(models.User).filter_by(telegram_id=str(parent_tg_id)).first()
             if db_parent:
                 db_parent.num_referals += 1
 
@@ -30,23 +33,55 @@ async def add_user(tg_id: int, parent_tg_id: Union[int, None] = None):
 
 async def get_cur_message_link(tg_id: int):
     with db.SessionLocal() as session:
-        db_user = session.query(models.User).filter_by(telegram_id=tg_id).first()
+        db_user = session.query(models.User).filter_by(telegram_id=str(tg_id)).first()
         return db_user.cur_message_link
 
 
 async def get_num_referals(tg_id: int) -> int:
     with db.SessionLocal() as session:
-        db_user = session.query(models.User).filter_by(telegram_id=tg_id).first()
+        db_user = session.query(models.User).filter_by(telegram_id=str(tg_id)).first()
         return db_user.num_referals
 
 
-async def get_message(message_link: str) -> schemas.Message:
+async def get_message(message_link: str, flags: set[str] = set()) -> schemas.Message:
     with db.SessionLocal() as session:
         db_message = session.query(models.Message).filter_by(link=message_link).first()
         if not db_message:
             db_message = session.query(models.Message).filter_by(start_msg=True).first()
+        format_data = {'ref_url': '{ref_url}', 'boosty_url': '{boosty_url}'}
+        for addition_text in db_message.addition_text:
+            if addition_text.up_flags:
+                condition_flags = set(
+                    [condition_flag.name for condition_flag in addition_text.up_flags]
+                )
+                if not condition_flags.issubset(flags):
+                    format_data[addition_text.tag] = ''
+                    continue
+            if addition_text.down_flags:
+                condition_flags = set(
+                    [condition_flag.name for condition_flag in addition_text.down_flags]
+                )
+                if not condition_flags.isdisjoint(flags):
+                    format_data[addition_text.tag] = ''
+                    continue
+            format_data[addition_text.tag] = addition_text.text
+
         buttons = []
         for button in db_message.buttons:
+
+            if button.up_flags:
+                condition_flags = set(
+                    [condition_flag.name for condition_flag in button.up_flags]
+                )
+                if not condition_flags.issubset(flags):
+                    continue
+            if button.down_flags:
+                condition_flags = set(
+                    [condition_flag.name for condition_flag in button.down_flags]
+                )
+                if not condition_flags.isdisjoint(flags):
+                    continue
+
             buttons.append(schemas.Button(
                 text=button.text,
                 number=button.number,
@@ -58,7 +93,7 @@ async def get_message(message_link: str) -> schemas.Message:
             time_typing=db_message.time_typing,
             start_of_chapter_name=db_message.start_of_chapter_name,
             timeout=db_message.timeout,
-            text=db_message.message,
+            text=db_message.message.format_map(format_data) if db_message.message else None,
             media_id=db_message.media.id if db_message.media else None,
             next_msg=db_message.next_msg,
             buttons=buttons,
@@ -66,20 +101,48 @@ async def get_message(message_link: str) -> schemas.Message:
                 react.text for react in db_message.wait_reaction.reactions
             ] if db_message.wait_reaction else None,
             referal_block=db_message.referal_block,
+            set_flags=set([set_flag.name for set_flag in db_message.set_flags]),
+            rm_flags=set([rm_flag.name for rm_flag in db_message.rm_flags]),
         )
     return message
 
 
-async def set_cur_message(tg_id: int, msg_link: str, chapter_start: bool = False) -> None:
+async def update_user_status(
+    tg_id: int,
+    last_message: schemas.Message,
+) -> set[str]:
     with db.SessionLocal() as session:
-        db_user = session.query(models.User).filter_by(telegram_id=tg_id).first()
-        db_user.cur_message_link = msg_link
-        if chapter_start:
-            if db_user.chapter_message_links and msg_link not in db_user.chapter_message_links:
-                db_user.chapter_message_links += f'|{msg_link}'
-            elif not db_user.chapter_message_links:
-                db_user.chapter_message_links = msg_link
+        db_user = session.query(models.User).filter_by(telegram_id=str(tg_id)).first()
+        db_user.cur_message_link = last_message.link
+        # TODO попробывать
+        db_flags_for_set = session.query(models.Flag).filter(
+            models.Flag.name.in_(last_message.set_flags)
+            ).filter(~models.Flag.users.contains(db_user)).all()
+        db_user.flags.extend(db_flags_for_set)
+        db_flags_for_rm = session.query(models.Flag).filter(
+            models.Flag.name.in_(last_message.rm_flags)
+            ).filter(models.Flag.users.contains(db_user)).all()
+        for db_flag_for_rm in db_flags_for_rm:
+            db_user.flags.remove(db_flag_for_rm)
+
+        if last_message.start_of_chapter_name:
+            save_data = session.query(models.SaveUserData).filter_by(
+                user=db_user,
+                message_link=last_message.link,
+            ).first()
+            if not save_data:
+                save_data = models.SaveUserData(
+                    user=db_user,
+                    message_link=last_message.link,
+                    date=datetime.now(),
+                )
+                session.add(save_data)
+
+            save_data.flags = db_user.flags
+
         session.commit()
+        curent_flags = set([flag.name for flag in db_user.flags])
+    return curent_flags
 
 
 async def get_tg_id_media(media_id: int) -> Union[str, None]:
@@ -101,19 +164,39 @@ async def update_media_tg_id(media_id: int, media_tg_id: str) -> None:
         session.commit()
 
 
-async def get_started_chapters(tg_id: int) -> list[tuple[str]]:
+async def get_started_chapters(tg_id: str) -> list[tuple[str]]:
     started_chapters = []
     with db.SessionLocal() as session:
-        db_user = session.query(models.User).filter_by(telegram_id=tg_id).first()
-        if db_user.chapter_message_links:
-            for message_link in db_user.chapter_message_links.split('|'):
-                db_message = session.query(models.Message).filter_by(link=message_link).first()
-                if not db_message or not db_message.start_of_chapter_name:
-                    continue
-                started_chapters.append(
-                    (db_message.start_of_chapter_name, db_message.link)
-                )
+        db_user: models.User = session.query(models.User).filter_by(telegram_id=tg_id).first()
+        save_datas = session.query(
+            models.SaveUserData
+        ).filter_by(
+            user=db_user
+        ).order_by(
+            models.SaveUserData.date
+        ).all()
+        for save_data in save_datas:
+            db_message = session.query(models.Message).filter_by(link=save_data.message_link).first()
+            started_chapters.append((db_message.start_of_chapter_name, save_data.id))
     return started_chapters
+
+
+async def open_save(tg_id: str, save_data_id: str) -> str:
+    with db.SessionLocal() as session:
+        db_user: models.User = session.query(models.User).filter_by(telegram_id=tg_id).first()
+        save_data = session.query(models.SaveUserData).filter_by(
+            user=db_user,
+            id=int(save_data_id)
+        ).first()
+        session.query(models.SaveUserData).filter_by(
+            user=db_user
+        ).filter(
+            models.SaveUserData.date > save_data.date
+        ).delete()
+        db_user.flags = save_data.flags
+        message_link = save_data.message_link
+        session.commit()
+    return message_link
 
 
 async def add_story(zip_file):
@@ -126,6 +209,7 @@ async def add_story(zip_file):
         session.query(models.Button).delete()
         session.query(models.Media).delete()
         session.query(models.Reaction).delete()
+        session.query(models.AdditionText).delete()
         session.commit()
         session.query(models.Message).delete()
         session.query(models.WaitReaction).delete()
@@ -156,6 +240,32 @@ async def add_story(zip_file):
             passagedata.text
         ).strip()
         if text:
+            condition_parts = re.findall(r'(\(if:(.*?) is (.*?)\)\s*?\[(.*?)\])', text)
+            for condition_part in condition_parts:
+                expression, field, value, ad_text = condition_part
+                msg_var = schemas.Var(
+                    name=field.strip('"\'\\/'),
+                    value=value.strip('"\'\\/')
+                )
+                if isinstance(msg_var.value, bool):
+                    db_add_text = models.AdditionText(
+                        text=ad_text
+                    )
+                    session.add(db_add_text)
+                    db_flag = session.query(models.Flag).filter_by(name=msg_var.name).first()
+                    if not db_flag:
+                        db_flag = models.Flag(name=msg_var.name)
+                        session.add(db_flag)
+                    if msg_var.value:
+                        db_add_text.up_flags.append(db_flag)
+                    else:
+                        db_add_text.down_flags.append(db_flag)
+                session.commit()
+                db_add_text.tag = ADDITIONAL_TEXT_TAG.format(db_add_text.id)
+
+                text = text.replace(expression, '{'+db_add_text.tag+'}')
+                db_add_text.message = db_msg
+
             db_msg.message = text
         for p_var in passage_vars:
             field, value = p_var[1], p_var[3]
@@ -247,7 +357,9 @@ async def add_story(zip_file):
                             db_flag = models.Flag(name=condition.name)
                             session.add(db_flag)
                         if condition.value:
-                            new_button.condition_flags.append(db_flag)
+                            new_button.up_flags.append(db_flag)
+                        else:
+                            new_button.down_flags.append(db_flag)
                 session.add(new_button)
                 but_num += 1
 

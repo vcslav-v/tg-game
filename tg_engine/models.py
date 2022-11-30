@@ -1,7 +1,8 @@
 from sqlalchemy import (Boolean, Column, Float, ForeignKey, Integer,
-                        LargeBinary, Table, Text)
+                        LargeBinary, Table, Text, DateTime)
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import relationship
+
 
 Base = declarative_base()
 
@@ -9,6 +10,13 @@ user_flags = Table(
     'user_flags',
     Base.metadata,
     Column('users_id', ForeignKey('users.id', ondelete='CASCADE'), primary_key=True),
+    Column('flag_id', ForeignKey('flags.id', ondelete='CASCADE'), primary_key=True),
+)
+
+save_user_flags = Table(
+    'save_user_flags',
+    Base.metadata,
+    Column('save_user_datas_id', ForeignKey('save_user_datas.id', ondelete='CASCADE'), primary_key=True),
     Column('flag_id', ForeignKey('flags.id', ondelete='CASCADE'), primary_key=True),
 )
 
@@ -26,11 +34,32 @@ message_rm_flags = Table(
     Column('message_id', ForeignKey('messages.id', ondelete='CASCADE'), primary_key=True),
 )
 
-button_condition_flags = Table(
-    'button_condition_flags',
+button_condition_flags_up = Table(
+    'button_condition_flags_up',
     Base.metadata,
     Column('flag_id', ForeignKey('flags.id', ondelete='CASCADE'), primary_key=True),
     Column('button_id', ForeignKey('buttons.id', ondelete='CASCADE'), primary_key=True),
+)
+
+button_condition_flags_down = Table(
+    'button_condition_flags_down',
+    Base.metadata,
+    Column('flag_id', ForeignKey('flags.id', ondelete='CASCADE'), primary_key=True),
+    Column('button_id', ForeignKey('buttons.id', ondelete='CASCADE'), primary_key=True),
+)
+
+addition_text_up_flags = Table(
+    'addition_text_up_flags',
+    Base.metadata,
+    Column('flag_id', ForeignKey('flags.id', ondelete='CASCADE'), primary_key=True),
+    Column('addition_text_id', ForeignKey('addition_texts.id', ondelete='CASCADE'), primary_key=True),
+)
+
+addition_text_down_flags = Table(
+    'addition_text_down_flags',
+    Base.metadata,
+    Column('flag_id', ForeignKey('flags.id', ondelete='CASCADE'), primary_key=True),
+    Column('addition_text_id', ForeignKey('addition_texts.id', ondelete='CASCADE'), primary_key=True),
 )
 
 
@@ -44,10 +73,23 @@ class User(Base):
     telegram_id = Column(Text, unique=True)
     cur_message_link = Column(Text)
     num_referals = Column(Integer, default=0)
-    chapter_message_links = Column(Text, default='{}')
     flags = relationship(
         'Flag', secondary=user_flags, back_populates='users', cascade="all, delete",
     )
+    save_user_data = relationship('SaveUserData', back_populates='user')
+
+
+class SaveUserData(Base):
+    """Telegram users."""
+    __tablename__ = 'save_user_datas'
+    id = Column(Integer, primary_key=True)
+    message_link = Column(Text)
+    flags = relationship(
+        'Flag', secondary=save_user_flags, back_populates='save_user_datas', cascade="all, delete",
+    )
+    user_id = Column(Integer, ForeignKey('users.id'))
+    user = relationship('User', back_populates='save_user_data')
+    date = Column(DateTime)
 
 
 class Message(Base):
@@ -63,6 +105,8 @@ class Message(Base):
     time_typing = Column(Float, default=4.0)
     content_type = Column(Text)
     message = Column(Text)
+    addition_text = relationship('AdditionText', back_populates='message')
+
     media = relationship(
         'Media',
         uselist=False,
@@ -86,6 +130,23 @@ class Message(Base):
     rm_flags = relationship(
         'Flag', secondary=message_rm_flags, back_populates='messages_rem', cascade="all, delete"
     )
+
+
+class AdditionText(Base):
+    """Condition text for message"""
+    __tablename__ = 'addition_texts'
+
+    id = Column(Integer, primary_key=True)
+    tag = Column(Text)
+    text = Column(Text)
+    up_flags = relationship(
+        'Flag', secondary=addition_text_up_flags, back_populates='addition_text_up', cascade="all, delete",
+    )
+    down_flags = relationship(
+        'Flag', secondary=addition_text_down_flags, back_populates='addition_text_down', cascade="all, delete",
+    )
+    message_id = Column(Integer, ForeignKey('messages.id'))
+    message = relationship('Message', back_populates='addition_text')
 
 
 class Button(Base):
@@ -114,8 +175,12 @@ class Button(Base):
         foreign_keys=[next_message_link],
     )
 
-    condition_flags = relationship(
-        'Flag', secondary=button_condition_flags, back_populates='buttons', cascade="all, delete",
+    up_flags = relationship(
+        'Flag', secondary=button_condition_flags_up, back_populates='buttons_up', cascade="all, delete",
+    )
+
+    down_flags = relationship(
+        'Flag', secondary=button_condition_flags_down, back_populates='buttons_down', cascade="all, delete",
     )
 
 
@@ -197,9 +262,34 @@ class Flag(Base):
         back_populates='rm_flags',
         passive_deletes=True
     )
-    buttons = relationship(
+    buttons_up = relationship(
         'Button',
-        secondary=button_condition_flags,
-        back_populates='condition_flags',
+        secondary=button_condition_flags_up,
+        back_populates='up_flags',
+        passive_deletes=True,
+    )
+    buttons_down = relationship(
+        'Button',
+        secondary=button_condition_flags_down,
+        back_populates='down_flags',
+        passive_deletes=True,
+    )
+    save_user_datas = relationship(
+        'SaveUserData',
+        secondary=save_user_flags,
+        back_populates='flags',
+        passive_deletes=True,
+    )
+    addition_text_up = relationship(
+        'AdditionText',
+        secondary=addition_text_up_flags,
+        back_populates='up_flags',
+        passive_deletes=True,
+    )
+
+    addition_text_down = relationship(
+        'AdditionText',
+        secondary=addition_text_down_flags,
+        back_populates='down_flags',
         passive_deletes=True,
     )
