@@ -65,10 +65,10 @@ async def echo(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         return
 
     if user_context.next_message.referal_block:
-        # boosty_group_member = await context.bot.getChatMember(
-        #     BOOSTY_GROUP_ID, update.effective_message.chat_id
-        # )
-        if True: # boosty_group_member.status is not constants.ChatMemberStatus.MEMBER:
+        boosty_group_member = await context.bot.getChatMember(
+            BOOSTY_GROUP_ID, update.effective_message.chat_id
+        )
+        if boosty_group_member.status is not constants.ChatMemberStatus.MEMBER:
             num_referals = await db_tools.get_num_referals(update.effective_message.chat_id)
             if user_context.next_message.referal_block > num_referals:
                 await add_to_queue(update.effective_message.chat_id, context)
@@ -77,7 +77,10 @@ async def echo(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     for button in user_context.next_message.buttons:
         if update.message.text != button.text:
             continue
-        user_context.next_message = await db_tools.get_message(button.next_message_link, user_context.flags)
+        user_context.next_message = await db_tools.get_message(
+            button.next_message_link,
+            user_context.flags
+        )
         context.user_data['user_context'] = user_context
         break
     else:

@@ -16,7 +16,11 @@ user_flags = Table(
 save_user_flags = Table(
     'save_user_flags',
     Base.metadata,
-    Column('save_user_datas_id', ForeignKey('save_user_datas.id', ondelete='CASCADE'), primary_key=True),
+    Column(
+        'save_user_datas_id',
+        ForeignKey('save_user_datas.id', ondelete='CASCADE'),
+        primary_key=True
+    ),
     Column('flag_id', ForeignKey('flags.id', ondelete='CASCADE'), primary_key=True),
 )
 
@@ -52,14 +56,22 @@ addition_text_up_flags = Table(
     'addition_text_up_flags',
     Base.metadata,
     Column('flag_id', ForeignKey('flags.id', ondelete='CASCADE'), primary_key=True),
-    Column('addition_text_id', ForeignKey('addition_texts.id', ondelete='CASCADE'), primary_key=True),
+    Column(
+        'addition_text_id',
+        ForeignKey('addition_texts.id', ondelete='CASCADE'),
+        primary_key=True
+    ),
 )
 
 addition_text_down_flags = Table(
     'addition_text_down_flags',
     Base.metadata,
     Column('flag_id', ForeignKey('flags.id', ondelete='CASCADE'), primary_key=True),
-    Column('addition_text_id', ForeignKey('addition_texts.id', ondelete='CASCADE'), primary_key=True),
+    Column(
+        'addition_text_id',
+        ForeignKey('addition_texts.id', ondelete='CASCADE'),
+        primary_key=True
+    ),
 )
 
 
@@ -140,10 +152,16 @@ class AdditionText(Base):
     tag = Column(Text)
     text = Column(Text)
     up_flags = relationship(
-        'Flag', secondary=addition_text_up_flags, back_populates='addition_text_up', cascade="all, delete",
+        'Flag',
+        secondary=addition_text_up_flags,
+        back_populates='addition_text_up',
+        cascade="all, delete",
     )
     down_flags = relationship(
-        'Flag', secondary=addition_text_down_flags, back_populates='addition_text_down', cascade="all, delete",
+        'Flag',
+        secondary=addition_text_down_flags,
+        back_populates='addition_text_down',
+        cascade="all, delete",
     )
     message_id = Column(Integer, ForeignKey('messages.id'))
     message = relationship('Message', back_populates='addition_text')
@@ -176,11 +194,17 @@ class Button(Base):
     )
 
     up_flags = relationship(
-        'Flag', secondary=button_condition_flags_up, back_populates='buttons_up', cascade="all, delete",
+        'Flag',
+        secondary=button_condition_flags_up,
+        back_populates='buttons_up',
+        cascade="all, delete",
     )
 
     down_flags = relationship(
-        'Flag', secondary=button_condition_flags_down, back_populates='buttons_down', cascade="all, delete",
+        'Flag',
+        secondary=button_condition_flags_down,
+        back_populates='buttons_down',
+        cascade="all, delete",
     )
 
 

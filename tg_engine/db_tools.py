@@ -176,7 +176,11 @@ async def get_started_chapters(tg_id: str) -> list[tuple[str]]:
             models.SaveUserData.date
         ).all()
         for save_data in save_datas:
-            db_message = session.query(models.Message).filter_by(link=save_data.message_link).first()
+            db_message = session.query(
+                models.Message
+            ).filter_by(
+                link=save_data.message_link
+            ).first()
             started_chapters.append((db_message.start_of_chapter_name, save_data.id))
     return started_chapters
 
