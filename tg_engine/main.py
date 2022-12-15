@@ -222,6 +222,7 @@ async def add_to_queue(
 
 @logger.catch
 async def set_story(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    logger.debug('set story')
     if update.effective_message.chat_id != ADMIN_ID:
         return
     story_file = await context.bot.get_file(update.message.document)
