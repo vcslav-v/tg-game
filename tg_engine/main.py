@@ -20,6 +20,7 @@ SAVE_MENU_MSG = '''Давай повторим?
 🔀 - дни где твой выбор имел решающее значение
 (Осторожно прыжок во времени невозможно отменить, прыгнуть обратно уже не выйдет):'''
 
+
 @logger.catch
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
 
@@ -224,6 +225,7 @@ async def add_to_queue(
 async def set_story(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     logger.debug('set story')
     if update.effective_message.chat_id != ADMIN_ID:
+        logger.debug('not the admin')
         return
     story_file = await context.bot.get_file(update.message.document)
     with io.BytesIO() as zip_file:
