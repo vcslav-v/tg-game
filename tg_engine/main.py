@@ -8,6 +8,7 @@ from telegram.ext import (Application, CallbackQueryHandler, CommandHandler,
                           ContextTypes, MessageHandler, filters)
 
 from tg_engine import db_tools, schemas
+from loguru import logger
 
 ADMIN_ID = int(os.environ.get('ADMIN_ID', 0))
 BOOSTY_GROUP_ID = int(os.environ.get('BOOSTY_GROUP_ID', 0))
@@ -19,7 +20,7 @@ SAVE_MENU_MSG = '''Давай повторим?
 🔀 - дни где твой выбор имел решающее значение
 (Осторожно прыжок во времени невозможно отменить, прыгнуть обратно уже не выйдет):'''
 
-
+@logger.catch()
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
 
     """Send a message when the command /start is issued."""
@@ -33,6 +34,7 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     await add_to_queue(update.effective_message.chat_id, context)
 
 
+@logger.catch()
 async def get_user_context(
     chat_id: int,
     context: ContextTypes.DEFAULT_TYPE,
@@ -58,6 +60,7 @@ async def get_user_context(
     return user_context
 
 
+@logger.catch()
 async def echo(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     user_context = await get_user_context(update.effective_message.chat_id, context)
     if context.job_queue.get_jobs_by_name(str(update.effective_message.chat_id)):
@@ -98,6 +101,7 @@ async def echo(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     await add_to_queue(update.effective_message.chat_id, context)
 
 
+@logger.catch()
 def remove_job_if_exists(name: str, context: ContextTypes.DEFAULT_TYPE):
     current_jobs = context.job_queue.get_jobs_by_name(name)
 
@@ -105,6 +109,7 @@ def remove_job_if_exists(name: str, context: ContextTypes.DEFAULT_TYPE):
         job.schedule_removal()
 
 
+@logger.catch()
 async def send_message(context: ContextTypes.DEFAULT_TYPE) -> None:
     message: schemas.Message = context.job.data.user_data['user_context'].next_message
     data = {
@@ -184,6 +189,7 @@ async def send_status(context: ContextTypes.DEFAULT_TYPE) -> None:
         )
 
 
+@logger.catch()
 async def add_to_queue(
     chat_id: int,
     context: ContextTypes.DEFAULT_TYPE,
@@ -214,6 +220,7 @@ async def add_to_queue(
         )
 
 
+@logger.catch()
 async def set_story(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     if update.effective_message.chat_id != ADMIN_ID:
         return
@@ -242,6 +249,7 @@ async def jump(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     )
 
 
+@logger.catch()
 async def button(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     query = update.callback_query
     await query.answer()
@@ -252,6 +260,7 @@ async def button(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     await query.delete_message()
 
 
+@logger.catch()
 def main() -> None:
 
     """Start the bot."""
