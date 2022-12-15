@@ -9,11 +9,15 @@ from telegram.ext import (Application, CallbackQueryHandler, CommandHandler,
 
 from tg_engine import db_tools, schemas
 
-ADMIN_ID = int(os.environ.get('ADMIN_ID', 2601798))
+ADMIN_ID = int(os.environ.get('ADMIN_ID', 0))
 BOOSTY_GROUP_ID = int(os.environ.get('BOOSTY_GROUP_ID', 0))
-BOT_TOKEN = os.environ.get('BOT_TOKEN', '414349423:AAEPc431lxLuf5RVe_pgqlBbZcrzP65L45k')
-BOOSTY_URL = os.environ.get('BOOSTY_URL', 'boosty url')
+BOT_TOKEN = os.environ.get('BOT_TOKEN', '')
+BOOSTY_URL = os.environ.get('BOOSTY_URL', 'http://www.boosty.ru')
 TIME_RESEND_STATUS = 6
+SAVE_MENU_MSG = '''Давай повторим?
+
+🔀 - дни где твой выбор имел решающее значение
+(Осторожно прыжок во времени невозможно отменить, прыгнуть обратно уже не выйдет):'''
 
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
@@ -231,7 +235,11 @@ async def jump(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
             InlineKeyboardButton('Отмена', callback_data='cancel=cancel')]
         )
     reply_markup = InlineKeyboardMarkup(keyboard)
-    await update.message.reply_text('Давай повторим:', reply_markup=reply_markup)
+
+    await update.message.reply_text(
+        SAVE_MENU_MSG,
+        reply_markup=reply_markup
+    )
 
 
 async def button(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
