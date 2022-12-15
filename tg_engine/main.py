@@ -21,6 +21,15 @@ SAVE_MENU_MSG = '''Давай повторим?
 (Осторожно прыжок во времени невозможно отменить, прыгнуть обратно уже не выйдет):'''
 
 
+async def is_premium(update: Update, context: ContextTypes.DEFAULT_TYPE) -> bool:
+    # boosty_group_member = await context.bot.getChatMember(
+    #     BOOSTY_GROUP_ID,
+    #     update.effective_message.chat_id,
+    # )
+    # return boosty_group_member.status is constants.ChatMemberStatus.MEMBER
+    return True
+
+
 @logger.catch
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
 
@@ -73,10 +82,7 @@ async def echo(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         return
 
     if user_context.next_message.referal_block:
-        boosty_group_member = await context.bot.getChatMember(
-            BOOSTY_GROUP_ID, update.effective_message.chat_id
-        )
-        if boosty_group_member.status is not constants.ChatMemberStatus.MEMBER:
+        if not await is_premium(update, context):
             num_referals = await db_tools.get_num_referals(update.effective_message.chat_id)
             if user_context.next_message.referal_block > num_referals:
                 await add_to_queue(update.effective_message.chat_id, context)
