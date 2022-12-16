@@ -37,6 +37,12 @@ async def get_cur_message_link(tg_id: int):
         return db_user.cur_message_link
 
 
+async def get_user_flags(tg_id: int):
+    with db.SessionLocal() as session:
+        db_user = session.query(models.User).filter_by(telegram_id=str(tg_id)).first()
+        return set([flag.name for flag in db_user.flags])
+
+
 async def get_num_referals(tg_id: int) -> int:
     with db.SessionLocal() as session:
         db_user = session.query(models.User).filter_by(telegram_id=str(tg_id)).first()
@@ -248,8 +254,8 @@ async def add_story(zip_file):
             for condition_part in condition_parts:
                 expression, field, value, ad_text = condition_part
                 msg_var = schemas.Var(
-                    name=field.strip('"\'\\/'),
-                    value=value.strip('"\'\\/')
+                    name=field.strip('"\'\\/ '),
+                    value=value.strip('"\'\\/ ')
                 )
                 if isinstance(msg_var.value, bool):
                     db_add_text = models.AdditionText(
@@ -275,8 +281,8 @@ async def add_story(zip_file):
             field, value = p_var[1], p_var[3]
             if field.strip('"\'\\/')[0] == '$':
                 msg_var = schemas.Var(
-                    name=field.strip('"\'\\/'),
-                    value=value.strip('"\'\\/')
+                    name=field.strip('"\'\\/ '),
+                    value=value.strip('"\'\\/ ')
                 )
                 if isinstance(msg_var.value, bool):
                     db_flag = session.query(models.Flag).filter_by(name=msg_var.name).first()
@@ -352,8 +358,8 @@ async def add_story(zip_file):
                 )
                 if button_data[1]:
                     condition = schemas.Var(
-                        name=button_data[1].strip('"\'\\/'),
-                        value=button_data[2].strip('"\'\\/')
+                        name=button_data[1].strip('"\'\\/ '),
+                        value=button_data[2].strip('"\'\\/ ')
                     )
                     if isinstance(condition.value, bool):
                         db_flag = session.query(models.Flag).filter_by(name=condition.name).first()

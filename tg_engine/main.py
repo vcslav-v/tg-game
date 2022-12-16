@@ -53,6 +53,7 @@ async def get_user_context(
     user_context: schemas.UserContext = context.user_data.get('user_context')
     if not user_context:
         user_context = schemas.UserContext()
+        user_context.flags = await db_tools.get_user_flags(chat_id)
     if force_link:
         next_message = await db_tools.get_message(
             force_link,
