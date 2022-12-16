@@ -89,7 +89,7 @@ async def echo(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
                 return
 
     for button in user_context.next_message.buttons:
-        if update.message.text != button.text:
+        if update.message.text.strip() != button.text.strip():
             continue
         user_context.next_message = await db_tools.get_message(
             button.next_message_link,
