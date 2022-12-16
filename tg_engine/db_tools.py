@@ -296,12 +296,12 @@ async def add_story(zip_file):
             else:
                 if field == '_media':
                     iter_data = zip(
-                        re.findall(r'(\(dm:)(.*)(\))', value)[0][1].split(',')[::2],
-                        re.findall(r'(\(dm:)(.*)(\))', value)[0][1].split(',')[1::2]
+                        re.findall(r'\"(.*?)\"', re.findall(r'(\(dm:)(.*)(\))', value)[0][1])[::2],
+                        re.findall(r'\"(.*?)\"', re.findall(r'(\(dm:)(.*)(\))', value)[0][1])[1::2]
                     )
                     m_data = {}
                     for m_key, m_value in iter_data:
-                        _value = m_value.strip('"\'\\/')
+                        _value = m_value.strip('"\'\\/ ')
                         m_data[m_key.strip('"')] = int(_value) if _value.isdigit() else _value
                     db_msg.content_type = m_data['media_type']
                     with zip_value.open(os.path.join('media', m_data['file']), 'r') as media_file:
