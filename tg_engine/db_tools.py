@@ -10,7 +10,7 @@ from tg_engine import db, models, schemas
 from datetime import datetime
 
 ADDITIONAL_TEXT_TAG = 'ad_text_{}'
-
+MAX_BUTTON_LEN = 132
 
 async def is_user_exist(tg_id: int):
     with db.SessionLocal() as session:
@@ -235,6 +235,8 @@ async def add_story(zip_file):
     session.commit()
 
     for passagedata in story_soup.body.find('tw-storydata').find_all('tw-passagedata'):
+        if len(passagedata.attrs['name']) > MAX_BUTTON_LEN:
+            raise ValueError(f'LINK MORE 132 LETTERS - {passagedata.attrs["name"]}')
         new_msg = models.Message(link=passagedata.attrs['name'])
         session.add(new_msg)
         session.commit()
@@ -356,6 +358,8 @@ async def add_story(zip_file):
                     number=but_num,
                     next_message_link=button_link,
                 )
+                if len(new_button.text) > MAX_BUTTON_LEN:
+                    raise ValueError(f'TEXT BUTTON MORE 132 LETTERS - {new_button.text}')
                 if button_data[1]:
                     condition = schemas.Var(
                         name=button_data[1].strip('"\'\\/ '),

@@ -237,8 +237,12 @@ async def set_story(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     story_file = await context.bot.get_file(update.message.document)
     with io.BytesIO() as zip_file:
         await story_file.download_to_memory(out=zip_file)
-        await db_tools.add_story(zip_file)
-        await context.bot.send_message(update.effective_message.chat_id, 'done')
+        try:
+            await db_tools.add_story(zip_file)
+        except ValueError as e:
+            await context.bot.send_message(update.effective_message.chat_id, e.args[0])
+        else:
+            await context.bot.send_message(update.effective_message.chat_id, 'done')
 
 
 async def jump(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
