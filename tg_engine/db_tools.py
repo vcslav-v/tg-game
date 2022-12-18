@@ -10,7 +10,8 @@ from tg_engine import db, models, schemas
 from datetime import datetime
 
 ADDITIONAL_TEXT_TAG = 'ad_text_{}'
-MAX_BUTTON_LEN = 132
+MAX_BUTTON_LEN = 127
+
 
 async def is_user_exist(tg_id: int):
     with db.SessionLocal() as session:
