@@ -237,7 +237,7 @@ async def add_story(zip_file):
 
     for passagedata in story_soup.body.find('tw-storydata').find_all('tw-passagedata'):
         if len(passagedata.attrs['name']) > MAX_BUTTON_LEN:
-            raise ValueError(f'LINK MORE 132 LETTERS - {passagedata.attrs["name"]}')
+            raise ValueError(f'LINK MORE {MAX_BUTTON_LEN} LETTERS - {passagedata.attrs["name"]}')
         new_msg = models.Message(link=passagedata.attrs['name'])
         session.add(new_msg)
         session.commit()
@@ -360,7 +360,7 @@ async def add_story(zip_file):
                     next_message_link=button_link,
                 )
                 if len(new_button.text) > MAX_BUTTON_LEN:
-                    raise ValueError(f'TEXT BUTTON MORE 132 LETTERS - {new_button.text}')
+                    raise ValueError(f'TEXT BUTTON MORE {MAX_BUTTON_LEN} LETTERS - {new_button.text}')
                 if button_data[1]:
                     condition = schemas.Var(
                         name=button_data[1].strip('"\'\\/ '),
