@@ -85,6 +85,7 @@ class User(Base):
     telegram_id = Column(Text, unique=True)
     cur_message_link = Column(Text)
     num_referals = Column(Integer, default=0)
+    is_blocked = Column(Boolean, default=False)
     flags = relationship(
         'Flag', secondary=user_flags, back_populates='users', cascade="all, delete",
     )
