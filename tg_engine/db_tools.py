@@ -15,9 +15,13 @@ MAX_BUTTON_LEN = 127
 
 async def is_user_exist(tg_id: int):
     with db.SessionLocal() as session:
-        return bool(
-            session.query(models.User).filter_by(telegram_id=str(tg_id)).count()
-        )
+        db_user = session.query(models.User).filter_by(telegram_id=str(tg_id)).first()
+        if db_user:
+            db_user.is_blocked = False
+            session.commit()
+            return True
+        else:
+            return False
 
 
 async def add_user(tg_id: int, parent_tg_id: Union[int, None] = None):
@@ -360,7 +364,9 @@ async def add_story(zip_file):
                     next_message_link=button_link,
                 )
                 if len(new_button.text) > MAX_BUTTON_LEN:
-                    raise ValueError(f'TEXT BUTTON MORE {MAX_BUTTON_LEN} LETTERS - {new_button.text}')
+                    raise ValueError(
+                        f'TEXT BUTTON MORE {MAX_BUTTON_LEN} LETTERS - {new_button.text}'
+                    )
                 if button_data[1]:
                     condition = schemas.Var(
                         name=button_data[1].strip('"\'\\/ '),
