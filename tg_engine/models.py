@@ -86,6 +86,7 @@ class User(Base):
     cur_message_link = Column(Text)
     num_referals = Column(Integer, default=0)
     is_blocked = Column(Boolean, default=False)
+    last_message_date = Column(DateTime)
     flags = relationship(
         'Flag', secondary=user_flags, back_populates='users', cascade="all, delete",
     )

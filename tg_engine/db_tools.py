@@ -120,8 +120,8 @@ async def update_user_status(
 ) -> set[str]:
     with db.SessionLocal() as session:
         db_user = session.query(models.User).filter_by(telegram_id=str(tg_id)).first()
+        db_user.last_message_date = datetime.utcnow()
         db_user.cur_message_link = last_message.link
-        # TODO попробывать
         db_flags_for_set = session.query(models.Flag).filter(
             models.Flag.name.in_(last_message.set_flags)
             ).filter(~models.Flag.users.contains(db_user)).all()
@@ -141,7 +141,7 @@ async def update_user_status(
                 save_data = models.SaveUserData(
                     user=db_user,
                     message_link=last_message.link,
-                    date=datetime.now(),
+                    date=datetime.utcnow(),
                 )
                 session.add(save_data)
 
@@ -393,3 +393,10 @@ async def add_story(zip_file):
 
     session.commit()
     zip_value.close()
+
+
+async def set_user_block(tg_id: str):
+    with db.SessionLocal() as session:
+        db_user = session.query(models.User).filter_by(telegram_id=tg_id).first()
+        db_user.is_blocked = True
+        session.commit()

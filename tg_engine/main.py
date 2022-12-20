@@ -140,16 +140,25 @@ async def send_message(context: ContextTypes.DEFAULT_TYPE) -> None:
 
     if message.content_type == 'text':
         data['text'] = message.text
-        await context.bot.send_message(**data)
+        try:
+            await context.bot.send_message(**data)
+        except error.Forbidden:
+            db_tools.set_user_block(context.job.chat_id)
     elif message.content_type == 'photo':
         data['caption'] = message.text
         data['photo'] = await db_tools.get_tg_id_media(message.media_id)
 
         try:
-            await context.bot.send_photo(**data)
+            try:
+                await context.bot.send_photo(**data)
+            except error.Forbidden:
+                db_tools.set_user_block(context.job.chat_id)
         except error.BadRequest:
             data['photo'] = await db_tools.get_media(message.media_id)
-            sent_message = await context.bot.send_photo(**data)
+            try:
+                sent_message = await context.bot.send_photo(**data)
+            except error.Forbidden:
+                db_tools.set_user_block(context.job.chat_id)
             await db_tools.update_media_tg_id(message.media_id, sent_message.photo[-1].file_id)
 
     elif message.content_type == 'voice':
@@ -157,10 +166,16 @@ async def send_message(context: ContextTypes.DEFAULT_TYPE) -> None:
         data['voice'] = await db_tools.get_tg_id_media(message.media_id)
 
         try:
-            await context.bot.send_voice(**data)
+            try:
+                await context.bot.send_voice(**data)
+            except error.Forbidden:
+                db_tools.set_user_block(context.job.chat_id)
         except error.BadRequest:
             data['voice'] = await db_tools.get_media(message.media_id)
-            sent_message = await context.bot.send_voice(**data)
+            try:
+                sent_message = await context.bot.send_voice(**data)
+            except error.Forbidden:
+                db_tools.set_user_block(context.job.chat_id)
             await db_tools.update_media_tg_id(message.media_id, sent_message.voice.file_id)
 
     context.job.data.user_data['user_context'].flags = await db_tools.update_user_status(
@@ -181,20 +196,32 @@ async def send_status(context: ContextTypes.DEFAULT_TYPE) -> None:
     message: schemas.Message = context.job.data.user_data['user_context'].next_message
 
     if message.content_type == 'text':
-        await context.bot.send_chat_action(
-            context.job.chat_id,
-            constants.ChatAction.TYPING,
-        )
+        try:
+            await context.bot.send_chat_action(
+                context.job.chat_id,
+                constants.ChatAction.TYPING,
+            )
+        except error.Forbidden:
+            remove_job_if_exists(str(context.job.chat_id), context)
+            db_tools.set_user_block(context.job.chat_id)
     elif message.content_type == 'photo':
-        await context.bot.send_chat_action(
-            context.job.chat_id,
-            constants.ChatAction.UPLOAD_PHOTO,
-        )
+        try:
+            await context.bot.send_chat_action(
+                context.job.chat_id,
+                constants.ChatAction.UPLOAD_PHOTO,
+            )
+        except error.Forbidden:
+            remove_job_if_exists(str(context.job.chat_id), context)
+            db_tools.set_user_block(context.job.chat_id)
     elif message.content_type == 'voice':
-        await context.bot.send_chat_action(
-            context.job.chat_id,
-            constants.ChatAction.RECORD_VOICE,
-        )
+        try:
+            await context.bot.send_chat_action(
+                context.job.chat_id,
+                constants.ChatAction.RECORD_VOICE,
+            )
+        except error.Forbidden:
+            remove_job_if_exists(str(context.job.chat_id), context)
+            db_tools.set_user_block(context.job.chat_id)
 
 
 @logger.catch
